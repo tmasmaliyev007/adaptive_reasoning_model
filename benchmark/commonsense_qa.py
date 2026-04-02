@@ -7,10 +7,7 @@ from tqdm.auto import tqdm
 from typing import Optional
 from datasets import load_dataset, concatenate_datasets
 
-from llama_cpp import Llama
-from llama_cpp.llama_chat_format import Jinja2ChatFormatter
-
-from inference.llama import run_llama_inference
+from openai import OpenAI
 
 def _build_prompt(question: str, choices: dict) -> str:
     options = " ".join(
@@ -74,11 +71,10 @@ def _extract_reasoning_tag(response: str) -> dict:
 
 
 def evaluate_commonsense_qa(
-    model: Llama,
-    formatter: Jinja2ChatFormatter,
+    client: OpenAI,
     limit: Optional[int] = None,
     max_new_tokens: int = 2048,
-    temperature: float = 0.0,
+    temperature: float = 0.7,
     top_k: int = 40,
     top_p: float = 1.0,
     repeat_penalty: float = 1.0,
@@ -107,26 +103,25 @@ def evaluate_commonsense_qa(
         answer_key = sample["answerKey"]
 
         prompt = _build_prompt(question, choices)
+        message = [{"role": "user", "content": prompt}]
 
-        print(prompt)
-
-        response = run_llama_inference(
-            model = model,
-            instruction = prompt,
-            formatter = formatter,
-            max_new_tokens = max_new_tokens,
+        response = client.chat.completions.create(
+            messages = message,
+            model="any",
             temperature = temperature,
-            top_k = top_k,
             top_p = top_p,
-            repeat_penalty = repeat_penalty,
+            max_completion_tokens = max_new_tokens,
+            extra_body = {
+                "repeat_penalty": repeat_penalty,
+                "top_k": top_k
+            }
         )
+        print(response)
+        response = response.choices[0].message.content
 
         predicted, answer_malformed = _extract_answer(response)
         reasoning = _extract_reasoning_tag(response)
         is_correct = predicted == answer_key
-
-        print(predicted,answer_malformed)
-        print(reasoning)
 
         if predicted is None:
             unparseable += 1
@@ -150,8 +145,6 @@ def evaluate_commonsense_qa(
             jsonl_file.write(json.dumps(record) + "\n")
             jsonl_file.flush()
 
-        # Restore the KV Cache
-        model.reset()
 
         acc_so_far = correct / (i + 1)
         pbar.set_postfix(correct=f"{correct}/{i+1}", acc=f"{acc_so_far:.3f}")
