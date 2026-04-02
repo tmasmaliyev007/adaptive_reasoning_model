@@ -1,0 +1,4 @@
+[submodule "unsloth"]
+	path = unsloth
+	url = https://github.com/unslothai/unsloth/
+	branch = pip

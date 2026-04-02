@@ -1,7 +1,6 @@
 .env
 .vscode
 __pycache__
-unsloth*
 *gguf
 *.jsonl
 *.json
