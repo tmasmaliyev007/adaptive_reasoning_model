@@ -1,6 +1,7 @@
 from benchmark.commonsense_qa import evaluate_commonsense_qa
 
-from openai import OpenAI
+from openai import AsyncOpenAI
+import asyncio
 import requests
 import time
 
@@ -11,7 +12,7 @@ import os
 HOST = "127.0.0.1"
 PORT = "8080"
 BASE_URL = f"http://{HOST}:{PORT}"
-NUMBER_GPU_LAYER = 0
+NUMBER_GPU_LAYER = 99
 
 def wait_for_server(url: str, timeout: int = 120, intervals: int = 2) -> bool:
     start = time.time()
@@ -32,7 +33,7 @@ def wait_for_server(url: str, timeout: int = 120, intervals: int = 2) -> bool:
     
     raise TimeoutError(f"Server not ready after {timeout}s")
 
-def main(args):
+async def main(args):
     model_path = args.model_path
     if not os.path.isfile(model_path):
         from huggingface_hub import snapshot_download
@@ -61,7 +62,8 @@ def main(args):
                 "--host", HOST,
                 "--port", PORT,
                 "--special",
-                "-ngl", f"{NUMBER_GPU_LAYER}"
+                "-ngl", f"{NUMBER_GPU_LAYER}",
+                "-np", f"{args.parallel}"
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
@@ -72,12 +74,12 @@ def main(args):
             intervals = 2
         )
 
-        client = OpenAI(
+        client = AsyncOpenAI(
             base_url = BASE_URL,
             api_key = "none"
         )
 
-        evaluate_commonsense_qa(
+        await evaluate_commonsense_qa(
             client = client,
             limit = None if args.limit == -1 else args.limit,
             max_new_tokens = args.max_seq_length,
@@ -85,7 +87,8 @@ def main(args):
             top_k = args.top_k,
             top_p = args.top_p,
             repeat_penalty = args.repeat_penalty,
-            output_dir = args.experiment_dir
+            output_dir = args.experiment_dir,
+            concurrency = args.parallel
         )
     except Exception as e:
         print(e)
@@ -99,6 +102,7 @@ if __name__ == '__main__':
     parser.add_argument('--model-path',         type=str,    required=True)
     parser.add_argument('--chat-template-path', type=str,    required=True)
     parser.add_argument('--max-seq-length',     type=int,    required=True)
+    parser.add_argument('--parallel',           type=int,    required=True)
 
     parser.add_argument('--limit',              type=int,    default=-1)
     parser.add_argument('--temperature',        type=float,  default=1.0)
@@ -109,4 +113,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    main(args)
+    asyncio.run(main(args))

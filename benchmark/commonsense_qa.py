@@ -1,13 +1,14 @@
 import re
 import json
+import asyncio
 
 from pathlib import Path
-from tqdm.auto import tqdm
+from tqdm.asyncio import tqdm
 
 from typing import Optional
 from datasets import load_dataset, concatenate_datasets
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 def _build_prompt(question: str, choices: dict) -> str:
     options = " ".join(
@@ -70,8 +71,62 @@ def _extract_reasoning_tag(response: str) -> dict:
     }
 
 
-def evaluate_commonsense_qa(
-    client: OpenAI,
+async def _evaluate_single(
+    client: AsyncOpenAI,
+    semaphore: asyncio.Semaphore,
+    idx: int,
+    sample: dict,
+    max_new_tokens: int,
+    temperature: float,
+    top_k: int,
+    top_p: float,
+    repeat_penalty: float,
+    jsonl_file=None,
+    lock: Optional[asyncio.Lock] = None,
+) -> tuple[int, dict]:
+    prompt = _build_prompt(sample["question"], sample["choices"])
+    message = [{"role": "user", "content": prompt}]
+
+    async with semaphore:
+        response = await client.chat.completions.create(
+            messages=message,
+            model="any",
+            temperature=temperature,
+            top_p=top_p,
+            max_completion_tokens=max_new_tokens,
+            extra_body={
+                "repeat_penalty": repeat_penalty,
+                "top_k": top_k,
+            }
+        )
+
+    content = response.choices[0].message.content
+    predicted, answer_malformed = _extract_answer(content)
+    reasoning = _extract_reasoning_tag(content)
+
+    record = {
+        "id": sample["id"],
+        "question": sample["question"],
+        "answer_key": sample["answerKey"],
+        "predicted": predicted,
+        "answer_malformed": answer_malformed,
+        "correct": predicted == sample["answerKey"],
+        "reasoning_tag": reasoning["tag"],
+        "reasoning_all_tags": reasoning["tags"],
+        "reasoning_malformed": reasoning["is_malformed"],
+        "raw_response": content,
+    }
+
+    if jsonl_file is not None and lock is not None:
+        async with lock:
+            jsonl_file.write(json.dumps(record) + "\n")
+            jsonl_file.flush()
+
+    return idx, record
+
+
+async def evaluate_commonsense_qa(
+    client: AsyncOpenAI,
     limit: Optional[int] = None,
     max_new_tokens: int = 2048,
     temperature: float = 0.7,
@@ -79,6 +134,7 @@ def evaluate_commonsense_qa(
     top_p: float = 1.0,
     repeat_penalty: float = 1.0,
     output_dir: Optional[str] = None,
+    concurrency: int = 10,
 ) -> dict:
     splits = ["train", "validation", "test"]
     dataset = concatenate_datasets([
@@ -87,8 +143,8 @@ def evaluate_commonsense_qa(
     if limit is not None:
         dataset = dataset.select(range(min(limit, len(dataset))))
 
-    correct = 0
-    unparseable = 0
+    semaphore = asyncio.Semaphore(concurrency)
+    lock = asyncio.Lock()
 
     jsonl_file = None
     if output_dir is not None:
@@ -96,58 +152,40 @@ def evaluate_commonsense_qa(
         out_path.mkdir(parents=True, exist_ok=True)
         jsonl_file = open(out_path / "results.jsonl", "w", encoding="utf-8")
 
-    pbar = tqdm(enumerate(dataset), total=len(dataset), desc="CommonsenseQA")
-    for i, sample in pbar:
-        question = sample["question"]
-        choices = sample["choices"]
-        answer_key = sample["answerKey"]
-
-        prompt = _build_prompt(question, choices)
-        message = [{"role": "user", "content": prompt}]
-
-        response = client.chat.completions.create(
-            messages = message,
-            model="any",
-            temperature = temperature,
-            top_p = top_p,
-            max_completion_tokens = max_new_tokens,
-            extra_body = {
-                "repeat_penalty": repeat_penalty,
-                "top_k": top_k
-            }
+    tasks = [
+        _evaluate_single(
+            client=client,
+            semaphore=semaphore,
+            idx=i,
+            sample=sample,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            repeat_penalty=repeat_penalty,
+            jsonl_file=jsonl_file,
+            lock=lock,
         )
-        print(response)
-        response = response.choices[0].message.content
+        for i, sample in enumerate(dataset)
+    ]
 
-        predicted, answer_malformed = _extract_answer(response)
-        reasoning = _extract_reasoning_tag(response)
-        is_correct = predicted == answer_key
+    correct = 0
+    unparseable = 0
+    results = []
 
-        if predicted is None:
-            unparseable += 1
-        elif is_correct:
-            correct += 1
+    with tqdm(total=len(tasks), desc="CommonsenseQA") as pbar:
+        for coro in asyncio.as_completed(tasks):
+            idx, record = await coro
+            results.append((idx, record))
 
-        record = {
-            "id": sample["id"],
-            "question": question,
-            "answer_key": answer_key,
-            "predicted": predicted,
-            "answer_malformed": answer_malformed,
-            "correct": is_correct,
-            "reasoning_tag": reasoning["tag"],
-            "reasoning_all_tags": reasoning["tags"],
-            "reasoning_malformed": reasoning["is_malformed"],
-            "raw_response": response,
-        }
+            if record["predicted"] is None:
+                unparseable += 1
+            elif record["correct"]:
+                correct += 1
 
-        if jsonl_file is not None:
-            jsonl_file.write(json.dumps(record) + "\n")
-            jsonl_file.flush()
-
-
-        acc_so_far = correct / (i + 1)
-        pbar.set_postfix(correct=f"{correct}/{i+1}", acc=f"{acc_so_far:.3f}")
+            done = len(results)
+            pbar.set_postfix(acc=f"{correct / done:.1%}", correct=correct, unparseable=unparseable)
+            pbar.update(1)
 
     if jsonl_file is not None:
         jsonl_file.close()
