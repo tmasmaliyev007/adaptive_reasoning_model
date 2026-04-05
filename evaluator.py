@@ -1,4 +1,4 @@
-from benchmark.commonsense_qa import evaluate_commonsense_qa
+from benchmark.evaluate import evaluate_dataset
 
 from openai import AsyncOpenAI
 import asyncio
@@ -79,8 +79,9 @@ async def main(args):
             api_key = "none"
         )
 
-        await evaluate_commonsense_qa(
+        await evaluate_dataset(
             client = client,
+            filepath = args.filepath,
             limit = None if args.limit == -1 else args.limit,
             max_new_tokens = args.max_seq_length,
             temperature = args.temperature,
@@ -93,6 +94,8 @@ async def main(args):
     except Exception as e:
         print(e)
     finally:
+        client.close()
+
         if server is not None:
             server.terminate()
             server.wait()
@@ -100,6 +103,7 @@ async def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model-path',         type=str,    required=True)
+    parser.add_argument('--filepath',           type=str,    required=True)
     parser.add_argument('--chat-template-path', type=str,    required=True)
     parser.add_argument('--max-seq-length',     type=int,    required=True)
     parser.add_argument('--parallel',           type=int,    required=True)
