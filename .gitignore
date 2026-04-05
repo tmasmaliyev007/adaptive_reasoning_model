@@ -4,3 +4,4 @@ __pycache__
 *gguf
 *.jsonl
 *.json
+*.zip

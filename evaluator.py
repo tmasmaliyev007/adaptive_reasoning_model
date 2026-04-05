@@ -10,9 +10,9 @@ import subprocess
 import os
 
 HOST = "127.0.0.1"
-PORT = "8080"
+PORT = "8081"
 BASE_URL = f"http://{HOST}:{PORT}"
-NUMBER_GPU_LAYER = 99
+NUMBER_GPU_LAYER = 0
 
 def wait_for_server(url: str, timeout: int = 120, intervals: int = 2) -> bool:
     start = time.time()
@@ -50,13 +50,13 @@ async def main(args):
         if not filename:
             raise ValueError(f"There are no models inside repository with .gguf extension")
 
-        model_path = f"{model_dir}/{filename}"
+        model_path = f"{model_dir}/{filename[0]}"
 
     try:
         server = subprocess.Popen(
             [
                 "llama-server",
-                "-m", args.model_path,
+                "-m", model_path,
                 "--chat-template-file", args.chat_template_path,
                 "-c", str(args.max_seq_length),
                 "--host", HOST,

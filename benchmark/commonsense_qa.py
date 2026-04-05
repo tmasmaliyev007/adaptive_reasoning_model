@@ -58,7 +58,7 @@ def _extract_reasoning_tag(response: str) -> dict:
     tag = tags[0] if tags else ("DIRECT" if no_tags_at_all else None)
 
     # If direct Answer
-    if not no_tags_at_all:
+    if no_tags_at_all:
         is_malformed = False
     else:
         # Other tags
