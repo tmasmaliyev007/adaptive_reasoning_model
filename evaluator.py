@@ -1,5 +1,6 @@
 from benchmark.evaluate import evaluate_dataset
 
+from llama_client.tokenizer import Tokenizer
 from openai import AsyncOpenAI
 import asyncio
 import requests
@@ -79,8 +80,11 @@ async def main(args):
             api_key = "none"
         )
 
+        tokenizer = Tokenizer(base_url = BASE_URL)
+
         await evaluate_dataset(
             client = client,
+            tokenizer = tokenizer,
             filepath = args.filepath,
             limit = None if args.limit == -1 else args.limit,
             max_new_tokens = args.max_seq_length,
@@ -94,7 +98,7 @@ async def main(args):
     except Exception as e:
         print(e)
     finally:
-        client.close()
+        await client.close()
 
         if server is not None:
             server.terminate()

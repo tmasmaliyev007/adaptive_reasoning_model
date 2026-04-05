@@ -8,10 +8,13 @@ from typing import Optional
 from datasets import load_dataset
 
 from .run import evaluate_single
+
+from llama_client.tokenizer import Tokenizer
 from openai import AsyncOpenAI
 
 async def evaluate_dataset(
     client: AsyncOpenAI,
+    tokenizer: Tokenizer,
     filepath: str,
     limit: Optional[int] = None,
     max_new_tokens: int = 2048,
@@ -38,6 +41,7 @@ async def evaluate_dataset(
     tasks = [
         evaluate_single(
             client=client,
+            tokenizer = tokenizer,
             semaphore=semaphore,
             idx=i,
             sample=sample,
@@ -54,6 +58,7 @@ async def evaluate_dataset(
 
     correct = 0
     unparseable = 0
+    token_count = 0
     results = []
 
     with tqdm(total=len(tasks), desc="Dataset") as pbar:
@@ -66,8 +71,15 @@ async def evaluate_dataset(
             elif record["correct"]:
                 correct += 1
 
+            token_count+= record["token_usage"]
             done = len(results)
-            pbar.set_postfix(acc=f"{correct / done:.1%}", correct=correct, unparseable=unparseable)
+
+            pbar.set_postfix(
+                acc = f"{correct / done:.1%}", 
+                avg_token_count = f"{token_count / done:.1f}",
+                correct = correct, 
+                unparseable = unparseable
+            )
             pbar.update(1)
 
     if jsonl_file is not None:
@@ -75,10 +87,12 @@ async def evaluate_dataset(
 
     total = len(dataset)
     accuracy = correct / total if total > 0 else 0.0
+    avg_token_count = token_count / total if total > 0 else 0.0
 
     summary = {
         "accuracy": accuracy,
         "correct": correct,
+        "average_token_count": avg_token_count,
         "total": total,
         "unparseable": unparseable,
     }

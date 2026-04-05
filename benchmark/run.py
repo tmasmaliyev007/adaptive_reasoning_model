@@ -3,11 +3,13 @@ import asyncio
 
 from typing import Optional
 
+from llama_client.tokenizer import Tokenizer
 from openai import AsyncOpenAI
 from .utils import extract_answer, extract_reasoning_tag
 
 async def evaluate_single(
     client: AsyncOpenAI,
+    tokenizer: Tokenizer,
     semaphore: asyncio.Semaphore,
     idx: int,
     sample: dict,
@@ -39,8 +41,11 @@ async def evaluate_single(
     predicted, answer_malformed = extract_answer(content)
     reasoning = extract_reasoning_tag(content)
 
+    token_usage = tokenizer.count(content)
+
     record = {
         "id": sample["index"],
+        "token_usage": token_usage,
         "question": sample["question"],
         "answer": sample["answer"],
         "predicted": predicted,
