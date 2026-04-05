@@ -10,6 +10,8 @@ from datasets import load_dataset, concatenate_datasets
 
 from openai import AsyncOpenAI
 
+FILEPATH: str = "data/jsonl/commonsense_qa/csqa_test.jsonl"
+
 def _build_prompt(question: str, choices: dict) -> str:
     options = " ".join(
         f"({label}){text}"
@@ -83,7 +85,8 @@ async def _evaluate_single(
     jsonl_file=None,
     lock: Optional[asyncio.Lock] = None,
 ) -> tuple[int, dict]:
-    prompt = _build_prompt(sample["question"], sample["choices"])
+    # prompt = _build_prompt(sample["question"], sample["choices"])
+    prompt = sample["question"]
     message = [{"role": "user", "content": prompt}]
 
     async with semaphore:
@@ -104,12 +107,12 @@ async def _evaluate_single(
     reasoning = _extract_reasoning_tag(content)
 
     record = {
-        "id": sample["id"],
+        "id": sample["index"],
         "question": sample["question"],
-        "answer_key": sample["answerKey"],
+        "answer": sample["answer"],
         "predicted": predicted,
         "answer_malformed": answer_malformed,
-        "correct": predicted == sample["answerKey"],
+        "correct": predicted == sample["answer"],
         "reasoning_tag": reasoning["tag"],
         "reasoning_all_tags": reasoning["tags"],
         "reasoning_malformed": reasoning["is_malformed"],
@@ -135,10 +138,12 @@ async def evaluate_commonsense_qa(
     output_dir: Optional[str] = None,
     concurrency: int = 10,
 ) -> dict:
-    splits = ["train", "validation", "test"]
-    dataset = concatenate_datasets([
-        load_dataset("tau/commonsense_qa", split=s) for s in splits
-    ])
+    # splits = ["train", "validation", "test"]
+    # dataset = concatenate_datasets([
+    #     load_dataset("tau/commonsense_qa", split=s) for s in splits
+    # ])
+
+    dataset = load_dataset('json', data_files={'test': FILEPATH})['test']
     if limit is not None:
         dataset = dataset.select(range(min(limit, len(dataset))))
 
