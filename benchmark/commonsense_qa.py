@@ -30,11 +30,10 @@ def _extract_answer(response: str) -> tuple[Optional[str], bool]:
 
     # Properly matched pairs
     matches = re.findall(r"<ANSWER>(.*?)</ANSWER>", response, re.DOTALL)
-    has_match = len(matches) == 1
 
-    is_malformed = not (has_match and is_freq_unique)
+    is_malformed = not is_freq_unique
 
-    if matches and not is_malformed:
+    if matches and is_freq_unique:
         return matches[0].strip(), is_malformed
 
     return None, is_malformed
