@@ -1,11 +1,22 @@
 import json
 import asyncio
 
-from typing import Optional
+from typing import Optional, Dict
 
 from llama_client.tokenizer import Tokenizer
 from openai import AsyncOpenAI
 from .utils import extract_answer, extract_reasoning_tag
+
+from .checker import math_check, exact_match, DatasetEval
+
+ANSWER_CHECKER: Dict[str, DatasetEval] = {
+    'commonsense_qa': exact_match,
+    'openbook_qa'   : exact_match,
+    'gsm8k'         : math_check,
+    'math'          : math_check,
+    'svamp'         : exact_match,
+    'aime2025'      : math_check
+}
 
 async def evaluate_single(
     client: AsyncOpenAI,
@@ -43,6 +54,13 @@ async def evaluate_single(
 
     token_usage = tokenizer.count(content)
 
+    ds_eval = ANSWER_CHECKER.get(sample["dataset_name"], None)
+
+    if ds_eval is None:
+        raise ValueError(f"Unrecognized local dataset name : {sample['dataset_name']}")
+    
+    is_correct = ds_eval(sample["answer"], predicted)
+
     record = {
         "id": sample["index"],
         "token_usage": token_usage,
@@ -50,7 +68,7 @@ async def evaluate_single(
         "answer": sample["answer"],
         "predicted": predicted,
         "answer_malformed": answer_malformed,
-        "correct": predicted == sample["answer"],
+        "correct": is_correct,
         "reasoning_tag": reasoning["tag"],
         "reasoning_all_tags": reasoning["tags"],
         "reasoning_malformed": reasoning["is_malformed"],
