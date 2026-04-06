@@ -60,7 +60,7 @@ async def evaluate_single(
         exc_reason_content = content
         if reasoning_info["reason_tag_span"]:
             left_span, right_span = reasoning_info["reason_tag_span"]
-            exc_reason_content = content[left_span: right_span]
+            exc_reason_content = content[right_span: ]
 
         answer_info = extract_answer(exc_reason_content)
 
@@ -73,7 +73,7 @@ async def evaluate_single(
                 raise ValueError(f"Unrecognized local dataset name : {sample['dataset_name']}")
             
             is_correct = ds_eval(sample["answer"], answer_info["answer"])
-
+    
     record = {
         "id": sample["index"],
         "token_usage": token_usage,

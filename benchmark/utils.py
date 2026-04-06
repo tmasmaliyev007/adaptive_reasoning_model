@@ -12,7 +12,8 @@ def detect_tag(tags: Dict[str, str], response: str) -> Optional[str]:
         
     return occurance
 
-def extract_answer(response: str) -> tuple[Optional[str], bool]:
+
+def extract_answer(response: str) -> dict:
     response = response.strip()
 
     TAGS = {
@@ -33,14 +34,14 @@ def extract_answer(response: str) -> tuple[Optional[str], bool]:
 
     is_malformed            = False
 
-
     for tag, pattern in TAGS.items():
         mathces = re.search(pattern, response, flags=re.DOTALL)
         if mathces is None:
             continue
         
-        # Get Inner text
+        # Get Inner text & Answer
         group = mathces.group(1)
+        answer = group.strip()
 
         # Check if there is a open & closed tag inside the selected text
         inner_answer_tag = detect_tag(TAGS, group)
@@ -68,7 +69,6 @@ def extract_answer(response: str) -> tuple[Optional[str], bool]:
             break
         
         # If all conditions are met, hence, it is applicable to select final answer
-        answer = group.strip()
         break
 
     if (inner_answer_tag or \
@@ -121,8 +121,16 @@ def extract_reasoning_tag(response: str) -> dict:
         if mathces is None:
             continue
         
+        # Set reason tag & (left, right) span
+        reason_tag = tag
+
         # Get Inner text
         group = mathces.group(1)
+
+        st_l = mathces.start(0)
+        end_r = mathces.end(0)
+
+        reason_tag_span = (st_l, end_r)
 
         # Check if there is a open & closed tag inside the selected text
         inner_reason_tag = detect_tag(TAGS, group)
@@ -134,9 +142,6 @@ def extract_reasoning_tag(response: str) -> dict:
         if inner_single_reason_tag:
             break
         
-        st_l = mathces.start(0)
-        end_r = mathces.end(0)
-
         outer_group = response[0: st_l] + response[end_r: ]
 
         # Check if there is a open & closed tag outside the selected text
@@ -148,20 +153,22 @@ def extract_reasoning_tag(response: str) -> dict:
         outer_single_reason_tag = detect_tag(SINGLE_TAGS, outer_group)
         if outer_single_reason_tag:
             break
-        
-        # If all conditions are met, hence, it is applicable to select tag as task-tag
-        reason_tag = tag
-        reason_tag_span = (st_l, end_r)
+
+        # If all conditions are met, hence, it is applicable to select final answer
         break
 
-    if (inner_reason_tag or inner_single_reason_tag or outer_reason_tag or outer_single_reason_tag):
+    if (inner_reason_tag or \
+        inner_single_reason_tag or \
+        outer_reason_tag or \
+        outer_single_reason_tag
+    ):
         is_malformed = True
     else:
         reason_tag = "DIRECT" if reason_tag is None else reason_tag
 
     return {
         "tag"                     : reason_tag,
-        "reasong_tag_span"        : reason_tag_span,
+        "reason_tag_span"         : reason_tag_span,
         "inner_reason_tag"        : inner_reason_tag,
         "inner_single_reason_tag" : inner_single_reason_tag,
         "outer_reason_tag"        : outer_reason_tag,
