@@ -68,6 +68,7 @@ async def evaluate_single(
         "id": sample["index"],
         "token_usage": token_usage,
         "question": sample["question"],
+        "ground_truth": sample["answer"],
         "answer_info": answer_info,
         "reasoning_info": reasoning_info,
         "correct": is_correct,

@@ -66,7 +66,7 @@ async def evaluate_dataset(
             idx, record = await coro
             results.append((idx, record))
 
-            if record["predicted"] is None:
+            if record["answer_info"]["is_malformed"]:
                 unparseable += 1
             elif record["correct"]:
                 correct += 1
