@@ -53,12 +53,9 @@ def extract_answer(response: str) -> tuple[Optional[str], bool]:
             break
         
         st_l = mathces.start(0)
-        st_r = mathces.start(1)
-
-        end_l = mathces.end(1)
         end_r = mathces.end(0)
 
-        outer_group = response[0: st_l] + response[st_r: end_l] + response[end_r: ]
+        outer_group = response[0: st_l] + response[end_r: ]
 
         # Check if there is a open & closed tag outside the selected text
         outer_answer_tag = detect_tag(TAGS, outer_group)
@@ -110,6 +107,7 @@ def extract_reasoning_tag(response: str) -> dict:
     }
 
     reason_tag              = None
+    reason_tag_span         = None
     inner_reason_tag        = None
     inner_single_reason_tag = None
 
@@ -137,12 +135,9 @@ def extract_reasoning_tag(response: str) -> dict:
             break
         
         st_l = mathces.start(0)
-        st_r = mathces.start(1)
-
-        end_l = mathces.end(1)
         end_r = mathces.end(0)
 
-        outer_group = response[0: st_l] + response[st_r: end_l] + response[end_r: ]
+        outer_group = response[0: st_l] + response[end_r: ]
 
         # Check if there is a open & closed tag outside the selected text
         outer_reason_tag = detect_tag(TAGS, outer_group)
@@ -156,6 +151,7 @@ def extract_reasoning_tag(response: str) -> dict:
         
         # If all conditions are met, hence, it is applicable to select tag as task-tag
         reason_tag = tag
+        reason_tag_span = (st_l, end_r)
         break
 
     if (inner_reason_tag or inner_single_reason_tag or outer_reason_tag or outer_single_reason_tag):
@@ -165,6 +161,7 @@ def extract_reasoning_tag(response: str) -> dict:
 
     return {
         "tag"                     : reason_tag,
+        "reasong_tag_span"        : reason_tag_span,
         "inner_reason_tag"        : inner_reason_tag,
         "inner_single_reason_tag" : inner_single_reason_tag,
         "outer_reason_tag"        : outer_reason_tag,
