@@ -49,29 +49,28 @@ async def evaluate_single(
         )
 
     content = response.choices[0].message.content
-    predicted, answer_malformed = extract_answer(content)
-    reasoning = extract_reasoning_tag(content)
+    reasoning_info = extract_reasoning_tag(content)
+    answer_info    = extract_answer(content)
 
     token_usage = tokenizer.count(content)
 
-    ds_eval = ANSWER_CHECKER.get(sample["dataset_name"], None)
+    if answer_info["is_malformed"]:
+        is_correct = False
+    else:
+        ds_eval = ANSWER_CHECKER.get(sample["dataset_name"], None)
 
-    if ds_eval is None:
-        raise ValueError(f"Unrecognized local dataset name : {sample['dataset_name']}")
-    
-    is_correct = ds_eval(sample["answer"], predicted)
+        if ds_eval is None:
+            raise ValueError(f"Unrecognized local dataset name : {sample['dataset_name']}")
+        
+        is_correct = ds_eval(sample["answer"], answer_info["answer"])
 
     record = {
         "id": sample["index"],
         "token_usage": token_usage,
         "question": sample["question"],
-        "answer": sample["answer"],
-        "predicted": predicted,
-        "answer_malformed": answer_malformed,
+        "answer_info": answer_info,
+        "reasoning_info": reasoning_info,
         "correct": is_correct,
-        "reasoning_tag": reasoning["tag"],
-        "reasoning_all_tags": reasoning["tags"],
-        "reasoning_malformed": reasoning["is_malformed"],
         "raw_response": content,
     }
 

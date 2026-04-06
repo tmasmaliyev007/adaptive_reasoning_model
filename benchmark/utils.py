@@ -1,50 +1,173 @@
 import re
-from typing import Optional
+from typing import Optional, Dict
+
+def detect_tag(tags: Dict[str, str], response: str) -> Optional[str]:
+    occurance = None
+    for e_tag, e_pattern in tags.items():
+        matches = re.search(e_pattern, response, flags=re.DOTALL)
+
+        if matches:
+            occurance = e_tag
+            break
+        
+    return occurance
 
 def extract_answer(response: str) -> tuple[Optional[str], bool]:
     response = response.strip()
 
-    opens  = re.findall(r"<ANSWER>",  response)
-    closes = re.findall(r"</ANSWER>", response)
-    is_freq_unique = (len(opens) == 1) and (len(closes) == 1)
+    TAGS = {
+        "ANSWER" : r"<ANSWER>(.*)</ANSWER>", 
+    }
 
-    # Properly matched pairs
-    matches = re.findall(r"<ANSWER>(.*?)</ANSWER>", response, re.DOTALL)
+    SINGLE_TAGS = {
+        "ANSWER_OPEN"        : r"<ANSWER>",
+        "ANSWER_CLOSED"      : r"</ANSWER>",
+    }
 
-    is_malformed = not is_freq_unique
+    answer                  = None
+    inner_answer_tag        = None
+    inner_single_answer_tag = None
 
-    if matches and is_freq_unique:
-        return matches[0].strip(), is_malformed
+    outer_answer_tag        = None
+    outer_single_answer_tag = None
 
-    return None, is_malformed
+    is_malformed            = False
+
+
+    for tag, pattern in TAGS.items():
+        mathces = re.search(pattern, response, flags=re.DOTALL)
+        if mathces is None:
+            continue
+        
+        # Get Inner text
+        group = mathces.group(1)
+
+        # Check if there is a open & closed tag inside the selected text
+        inner_answer_tag = detect_tag(TAGS, group)
+        if inner_answer_tag:
+            break
+
+        # Check if there is a single tag inside the selected text
+        inner_single_answer_tag = detect_tag(SINGLE_TAGS, group)
+        if inner_single_answer_tag:
+            break
+        
+        st_l = mathces.start(0)
+        st_r = mathces.start(1)
+
+        end_l = mathces.end(1)
+        end_r = mathces.end(0)
+
+        outer_group = response[0: st_l] + response[st_r: end_l] + response[end_r: ]
+
+        # Check if there is a open & closed tag outside the selected text
+        outer_answer_tag = detect_tag(TAGS, outer_group)
+        if outer_answer_tag:
+            break
+
+        # Check if there is a single tag outside the selected text
+        outer_single_answer_tag = detect_tag(SINGLE_TAGS, outer_group)
+        if outer_single_answer_tag:
+            break
+        
+        # If all conditions are met, hence, it is applicable to select final answer
+        answer = group.strip()
+        break
+
+    if (inner_answer_tag or \
+        inner_single_answer_tag or \
+        outer_answer_tag or \
+        outer_single_answer_tag or \
+        answer is None
+    ):
+        is_malformed = True
+
+    return {
+        "answer"                  : answer,
+        "inner_answer_tag"        : inner_answer_tag,
+        "inner_single_answer_tag" : inner_single_answer_tag,
+        "outer_answer_tag"        : outer_answer_tag,
+        "outer_single_answer_tag" : outer_single_answer_tag,
+        "is_malformed"            : is_malformed
+    }
 
 
 def extract_reasoning_tag(response: str) -> dict:
     response = response.strip()
-    TAG = r"(LONG_COT|COT|CODE)"
+    TAGS = {
+        "LONG_COT" : r"<LONG_COT>(.*)</LONG_COT>", 
+        "COT"      : r"<COT>(.*)</COT>",
+        "CODE"     : r"<CODE>(.*)</CODE>"
+    }
 
-    opens  = re.findall(rf"<{TAG}>",  response)
-    closes = re.findall(rf"</{TAG}>", response)
-    is_freq_unique = (len(opens) == 1) and (len(closes) == 1)
+    SINGLE_TAGS = {
+        "COT_OPEN"        : r"<COT>",
+        "COT_CLOSED"      : r"</COT>",
+        "LONG_COT_OPEN"   : r"<LONG_COT>",
+        "LONG_COT_CLOSED" : r"</LONG_COT>",
+        "CODE_OPEN"       : r"<CODE>",
+        "CODE_CLOSED"     : r"</CODE>"
+    }
 
-    # Properly matched pairs
-    matched = re.findall(rf"<{TAG}>(.*?)</\1>", response, re.DOTALL)
-    has_match = len(matched) == 1
+    reason_tag              = None
+    inner_reason_tag        = None
+    inner_single_reason_tag = None
 
-    no_tags_at_all = not opens and not closes
+    outer_reason_tag        = None
+    outer_single_reason_tag = None
 
-    tags = [tag for tag, _ in matched]
-    tag = tags[0] if tags else ("DIRECT" if no_tags_at_all else None)
+    is_malformed            = False
 
-    # If direct Answer
-    if no_tags_at_all:
-        is_malformed = False
+    for tag, pattern in TAGS.items():
+        mathces = re.search(pattern, response, flags=re.DOTALL)
+        if mathces is None:
+            continue
+        
+        # Get Inner text
+        group = mathces.group(1)
+
+        # Check if there is a open & closed tag inside the selected text
+        inner_reason_tag = detect_tag(TAGS, group)
+        if inner_reason_tag:
+            break
+
+        # Check if there is a single tag inside the selected text
+        inner_single_reason_tag = detect_tag(SINGLE_TAGS, group)
+        if inner_single_reason_tag:
+            break
+        
+        st_l = mathces.start(0)
+        st_r = mathces.start(1)
+
+        end_l = mathces.end(1)
+        end_r = mathces.end(0)
+
+        outer_group = response[0: st_l] + response[st_r: end_l] + response[end_r: ]
+
+        # Check if there is a open & closed tag outside the selected text
+        outer_reason_tag = detect_tag(TAGS, outer_group)
+        if outer_reason_tag:
+            break
+
+        # Check if there is a single tag outside the selected text
+        outer_single_reason_tag = detect_tag(SINGLE_TAGS, outer_group)
+        if outer_single_reason_tag:
+            break
+        
+        # If all conditions are met, hence, it is applicable to select tag as task-tag
+        reason_tag = tag
+        break
+
+    if (inner_reason_tag or inner_single_reason_tag or outer_reason_tag or outer_single_reason_tag):
+        is_malformed = True
     else:
-        # Other tags
-        is_malformed = not (has_match and is_freq_unique)
+        reason_tag = "DIRECT" if reason_tag is None else reason_tag
 
     return {
-        "tag": tag,
-        "tags": tags,
-        "is_malformed": is_malformed,
+        "tag"                     : reason_tag,
+        "inner_reason_tag"        : inner_reason_tag,
+        "inner_single_reason_tag" : inner_single_reason_tag,
+        "outer_reason_tag"        : outer_reason_tag,
+        "outer_single_reason_tag" : outer_single_reason_tag,
+        "is_malformed"            : is_malformed
     }
