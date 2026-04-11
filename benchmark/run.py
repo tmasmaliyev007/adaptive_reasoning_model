@@ -12,10 +12,11 @@ from .checker import math_check, exact_match, DatasetEval
 ANSWER_CHECKER: Dict[str, DatasetEval] = {
     'commonsense_qa': exact_match,
     'openbook_qa'   : exact_match,
-    'gsm8k'         : math_check,
-    'math'          : math_check,
+    'gsm8k'         : math_check ,
+    'math'          : math_check ,
     'svamp'         : exact_match,
-    'aime2025'      : math_check
+    'bbh'           : exact_match,
+    'aime2025'      : math_check ,
 }
 
 async def evaluate_single(
