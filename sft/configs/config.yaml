@@ -1,0 +1,16 @@
+defaults:
+  - model:    qwen3_4b
+  - lora:     default
+  - training: default
+  - data:     stage-1
+  - _self_
+
+seed: 42
+
+experiment_name: ???
+hub_push: true
+hub_repo: "taharmasmaliyev07/${experiment_name}"
+
+wandb:
+  enabled: true
+  project: "arm-sft"

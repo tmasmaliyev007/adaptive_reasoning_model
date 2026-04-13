@@ -1,0 +1,5 @@
+train_path: "data/jsonl/stage-1/train.jsonl"
+eval_path:  "data/jsonl/stage-1/test.jsonl"
+
+user_field:      "instruction"
+assistant_field: "output"

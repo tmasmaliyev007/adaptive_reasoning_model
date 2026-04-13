@@ -1,0 +1,16 @@
+name: "Qwen/Qwen3-0.6B"
+max_seq_length: 20000
+dtype: "float16"
+load_in_4bit: false
+attn_implementation: "flash_attention_2"
+use_gradient_checkpointing: "unsloth"
+
+special_tokens:
+  - "<ANSWER>"
+  - "</ANSWER>"
+  - "<CODE>"
+  - "</CODE>"
+  - "<COT>"
+  - "</COT>"
+  - "<LONG_COT>"
+  - "</LONG_COT>"
