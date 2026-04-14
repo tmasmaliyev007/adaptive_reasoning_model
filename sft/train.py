@@ -37,8 +37,6 @@ def load_model_and_tokenizer(cfg: DictConfig):
     if cfg.lora.train_embeddings:
         target_modules.extend(["embed_tokens"])
     
-    print(target_modules)
-
     # Apply LoRA
     model = FastLanguageModel.get_peft_model(
         model,
