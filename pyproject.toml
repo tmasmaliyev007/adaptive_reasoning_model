@@ -1,0 +1,23 @@
+[project]
+name = "adaptive-reasoning-model"
+version = "1.0.0"
+description = "Adaptive Reasoning Model - Task-aware reasoning for LLMs using GRPO"
+requires-python = ">=3.10"
+
+dependencies = [
+    "unsloth",
+    "hydra-core",
+    "omegaconf",
+    "python-dotenv",
+    "wandb",
+]
+
+[tool.setuptools.packages.find]
+include = ["sft*"]
+
+[tool.uv.sources]
+unsloth = { path = "libs/unsloth", editable = false }
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
