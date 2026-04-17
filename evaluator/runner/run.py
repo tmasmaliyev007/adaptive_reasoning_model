@@ -5,9 +5,9 @@ from typing import Optional, Dict
 
 from llama_client.tokenizer import Tokenizer
 from openai import AsyncOpenAI
-from .utils import extract_answer, extract_reasoning_tag
 
-from .checker import math_check, exact_match, DatasetEval
+from evaluator.parser import extract_answer, extract_reasoning_tag
+from evaluator.scoring import math_check, exact_match, DatasetEval
 
 ANSWER_CHECKER: Dict[str, DatasetEval] = {
     'commonsense_qa': exact_match,

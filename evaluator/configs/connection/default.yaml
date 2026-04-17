@@ -1,0 +1,8 @@
+host: 127.0.0.1
+port: 8081
+
+timeout:  120
+interval: 5
+
+url:    http://${connection.host}:${connection.port}
+health: http://${connection.host}:${connection.port}/health

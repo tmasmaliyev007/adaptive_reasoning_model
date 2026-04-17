@@ -2,19 +2,9 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from dotenv import load_dotenv
 
-from transformers import PreTrainedTokenizerFast, PreTrainedModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from peft import LoraConfig, get_peft_model
-from trl import SFTTrainer, SFTConfig
-from accelerate import Accelerator
-
-from.utils import push_to_hub_merged, tokenize
-from datasets import load_dataset, Dataset
-
+from transformers import PreTrainedTokenizerFast
 import torch
 import logging
-
-from typing import Tuple
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -25,14 +15,15 @@ DTYPE_MAP = {
 }
 
 
-def load_model_and_tokenizer(cfg: DictConfig) -> Tuple[PreTrainedModel, PreTrainedTokenizerFast]:
-    model = AutoModelForCausalLM.from_pretrained(
-        pretrained_model_name_or_path = cfg.model.name,
+def load_model_and_tokenizer(cfg: DictConfig):
+    from unsloth import FastLanguageModel
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name = cfg.model.name,
+        max_seq_length = cfg.model.max_seq_length,
         dtype = DTYPE_MAP[cfg.model.dtype],
-        attn_implementation = cfg.model.attn_implementation,
-        device_map=None
+        load_in_4bit = cfg.model.load_in_4bit,
+        attn_implementation = cfg.model.attn_implementation
     )
-    tokenizer = AutoTokenizer.from_pretrained(cfg.model.name)
 
     # Add ARM Special tokens
     if cfg.model.special_tokens:
@@ -41,23 +32,20 @@ def load_model_and_tokenizer(cfg: DictConfig) -> Tuple[PreTrainedModel, PreTrain
             special_tokens=True
         )
 
-    # Ensure gradients flow through frozen base layers to LoRA adapters
-    model.enable_input_require_grads()
-
     # Specify target modules
     target_modules = list(cfg.lora.target_modules)
     if cfg.lora.train_embeddings:
         target_modules.extend(["embed_tokens"])
     
     # Apply LoRA
-    lora_config = LoraConfig(
-        r=cfg.lora.r,
-        lora_alpha=cfg.lora.lora_alpha,
-        lora_dropout=cfg.lora.lora_dropout,
-        target_modules=target_modules,
-        task_type="CAUSAL_LM",
+    model = FastLanguageModel.get_peft_model(
+        model,
+        r = cfg.lora.r,
+        lora_alpha = cfg.lora.lora_alpha,
+        lora_dropout = cfg.lora.lora_dropout,
+        target_modules = target_modules,
+        use_gradient_checkpointing = cfg.model.use_gradient_checkpointing
     )
-    model = get_peft_model(model, lora_config)
     
     # Handle weight tying if needed
     if cfg.lora.tie_weights:
@@ -66,7 +54,10 @@ def load_model_and_tokenizer(cfg: DictConfig) -> Tuple[PreTrainedModel, PreTrain
     return model, tokenizer
 
 
-def load_local_dataset(cfg: DictConfig, tokenizer: PreTrainedTokenizerFast) -> Tuple[Dataset, Dataset]:
+def load_local_dataset(cfg: DictConfig, tokenizer: PreTrainedTokenizerFast):
+    from datasets import load_dataset
+    from .utils import tokenize
+
     # Read train & validation datasets from local directory
     ds_train = load_dataset("json", data_files={'train': cfg.data.train_path})['train']
     ds_val   = load_dataset("json", data_files={'val':   cfg.data.eval_path})['val']
@@ -85,13 +76,9 @@ def load_local_dataset(cfg: DictConfig, tokenizer: PreTrainedTokenizerFast) -> T
     return dst_train, dst_val
 
 
-def build_trainer(
-    model: PreTrainedModel, 
-    tokenizer: PreTrainedTokenizerFast, 
-    dst_train: Dataset, 
-    dst_val: Dataset, 
-    cfg: DictConfig
-) -> SFTTrainer:
+def build_trainer(model, tokenizer, dst_train, dst_val, cfg: DictConfig):
+    from trl import SFTTrainer, SFTConfig
+
     # Define training argument
     args = SFTConfig(
         # output_dir = f"checkpoints/{cfg.experiment_name}",
@@ -123,12 +110,12 @@ def build_trainer(
         dataset_num_proc = cfg.training.dataset_num_proc,
         packing=cfg.training.packing,
 
-        deepspeed=OmegaConf.to_container(cfg.deepspeed, resolve=True),
-        ddp_find_unused_parameters=False,
-
         report_to = "wandb" if cfg.wandb.enabled else "none",
-        run_name = cfg.experiment_name
+        run_name = cfg.experiment_name,
+
     )
+    # save_steps = cfg.training.save_steps,
+    # save_total_limit=cfg.training.save_total_limit,
     
     # Define trainer wrapper
     trainer = SFTTrainer(
@@ -147,14 +134,12 @@ def build_trainer(
     version_base=None
 )
 def main(cfg: DictConfig):
-    accelerator = Accelerator()
     container = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     cfg = OmegaConf.create(container)
 
     # W & B Initialize
-    if cfg.wandb.enabled and accelerator.is_main_process:
+    if cfg.wandb.enabled:
         import wandb
-        print('reached !')
 
         wandb.init(
             project = cfg.wandb.project,
@@ -172,15 +157,12 @@ def main(cfg: DictConfig):
     trainer = build_trainer(model, tokenizer, dst_train, dst_val, cfg)
     trainer.train()
 
-    # Wait for every gpu to complete the task
-    accelerator.wait_for_everyone()
-
     # Push to the huggingface hub as merged model
-    if cfg.hub_push and accelerator.is_main_process:
-        push_to_hub_merged(trainer, tokenizer, cfg, accelerator)
+    if cfg.hub_push:
+        model.push_to_hub_merged(cfg.hub_repo, tokenizer)
 
     # Shut Down W & A after training if enabled
-    if cfg.wandb.enabled and accelerator.is_main_process:
+    if cfg.wandb.enabled:
         wandb.finish()
 
 if __name__ == '__main__':

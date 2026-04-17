@@ -1,0 +1,10 @@
+defaults:
+  - model:      default 
+  - connection: default
+  - _self_
+
+chat_template:      template/qwen2.5.jinja
+data_path:          ???
+experiment_name:    ???
+experiment_dir:     runs/${experiment_name}
+concurrent_calls:   ???

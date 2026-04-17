@@ -1,19 +1,4 @@
-from benchmark.evaluate import evaluate_dataset
 
-from llama_client.tokenizer import Tokenizer
-from openai import AsyncOpenAI
-import asyncio
-import requests
-import time
-
-import argparse
-import subprocess
-import os
-
-HOST = "127.0.0.1"
-PORT = "8081"
-BASE_URL = f"http://{HOST}:{PORT}"
-NUMBER_GPU_LAYER = 0
 
 def wait_for_server(url: str, timeout: int = 120, intervals: int = 2) -> bool:
     start = time.time()
@@ -106,18 +91,7 @@ async def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model-path',         type=str,    required=True)
-    parser.add_argument('--filepath',           type=str,    required=True)
-    parser.add_argument('--chat-template-path', type=str,    required=True)
-    parser.add_argument('--max-seq-length',     type=int,    required=True)
-    parser.add_argument('--parallel',           type=int,    required=True)
 
-    parser.add_argument('--limit',              type=int,    default=-1)
-    parser.add_argument('--temperature',        type=float,  default=1.0)
-    parser.add_argument('--top-k',              type=int,    default=40)
-    parser.add_argument('--top-p',              type=float,  default=1.0)
-    parser.add_argument('--repeat-penalty',     type=float,  default=1.0)
-    parser.add_argument('--experiment-dir',     type=str,    default=None)
 
     args = parser.parse_args()
 
