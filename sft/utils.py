@@ -61,20 +61,18 @@ def push_to_hub_merged(
     trainer: SFTTrainer,
     tokenizer: PreTrainedTokenizerFast,
     cfg: DictConfig,
-    accelerator: Accelerator
 ):
-    if accelerator.is_main_process:
-        # Unwrap the model from DeepSpeed wrapper
-        unwrapped_model: PreTrainedModel = accelerator.unwrap_model(trainer.model)
+    # Unwrap the model
+    unwrapped_model: PreTrainedModel = trainer.model
 
-        # Merge LoRA weights into base model
-        merged_model: PreTrainedModel = unwrapped_model.merge_and_unload()
+    # Merge LoRA weights into base model
+    merged_model: PreTrainedModel = unwrapped_model.merge_and_unload()
 
-        # Push merged model + tokenizer to Hub
-        merged_model.push_to_hub(
-            cfg.hub_repo,
-            commit_message=f"Merged LoRA - {cfg.experiment_name}"
-        )
-        tokenizer.push_to_hub(
-            cfg.hub_repo
-        )
+    # Push merged model + tokenizer to Hub
+    merged_model.push_to_hub(
+        cfg.hub_repo,
+        commit_message=f"Merged LoRA - {cfg.experiment_name}"
+    )
+    tokenizer.push_to_hub(
+        cfg.hub_repo
+    )

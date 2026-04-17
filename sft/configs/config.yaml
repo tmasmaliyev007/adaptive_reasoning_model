@@ -3,7 +3,6 @@ defaults:
   - lora:      default
   - training:  default
   - data:      stage-1
-  - deepspeed: stage-2
   - _self_
 
 seed: 42
