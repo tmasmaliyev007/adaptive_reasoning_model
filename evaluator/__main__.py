@@ -9,7 +9,6 @@ import time
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import subprocess
-import os
 
 import logging
 
@@ -38,36 +37,18 @@ async def main(cfg: DictConfig):
     container = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     cfg = OmegaConf.create(container)
 
-    model_path = cfg.model.path
-
-    if not os.path.isfile(model_path):
-        from huggingface_hub import snapshot_download
-        model_dir = "model"
-        print("The file was not found in the directory. Now, considering input as huggingface repository and is automatically being searched...")
-
-        snapshot_download(
-            repo_id        = cfg.model.huggingface_src,
-            local_dir      = model_dir,
-            allow_patterns = ["*.gguf"]
-        )
-
-        filename = os.listdir(model_dir)
-        if not filename:
-            raise ValueError(f"There are no models inside repository with .gguf extension")
-
-        model_path = f"{model_dir}/{filename[0]}"
-
+    max_seq_length = cfg.model.seq_length_for_slot * cfg.concurrent_calls
     try:
         server = subprocess.Popen(
             [
                 "llama-server",
-                "-m",                   model_path,
-                "--chat-template-file", cfg.chat_template_path,
-                "-c",                   str(cfg.model.max_seq_length),
+                "-m",                   cfg.model.path,
+                "--chat-template-file", cfg.model.chat_template,
+                "-c",                   str(max_seq_length),
                 "--host",               str(cfg.connection.host),
                 "--port",               str(cfg.connection.port),
                 "--special",
-                "-ngl",                 str(cfg.model.load_num_of_gpu_layers),
+                "-ngl",                 str(cfg.load_num_of_gpu_layers),
                 "-np",                  str(cfg.concurrent_calls)
             ],
             stdout=subprocess.PIPE,
@@ -89,9 +70,9 @@ async def main(cfg: DictConfig):
         await evaluate_dataset(
             client         = client,
             tokenizer      = tokenizer,
-            filepath       = cfg.data_path,
+            filepath       = cfg.dataset.path,
             limit          = None if cfg.model.limit == -1 else cfg.model.limit,
-            max_new_tokens = cfg.model.max_seq_length,
+            max_new_tokens = max_seq_length,
             temperature    = cfg.model.temperature,
             top_k          = cfg.model.top_k,
             top_p          = cfg.model.top_p,
@@ -108,11 +89,9 @@ async def main(cfg: DictConfig):
             server.terminate()
             server.wait()
 
-@hydra.main(config_path="evaluator/configs", config_name="config")
-def get_config(cfg: DictConfig) -> DictConfig:
-    return cfg
+@hydra.main(config_path="configs", config_name="config", version_base=None)
+def initialize_and_run(cfg: DictConfig) -> None:
+    asyncio.run(main(cfg))
 
 if __name__ == '__main__':
-    cfg = get_config()
-
-    asyncio.run(main(cfg))
+    initialize_and_run()

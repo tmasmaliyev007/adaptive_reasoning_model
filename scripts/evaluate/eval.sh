@@ -1,8 +1,16 @@
-export DATA_PATH=data/jsonl/AIME2025/test.jsonl
-export EXPERIMENT_NAME=aime2025-qwen3-4B 
-export CONCURRENT_CALLS=8
+#!/bin/bash
 
-python -m evaluator \
-          data_path=${DATA_PATH} \
-          experiment_name=${EXPERIMENT_NAME} \
-          concurrent_calls=${CONCURRENT_CALLS}
+# Arguments
+export DATASET=aime2025
+export MODEL=qwen3-4B
+
+export LOAD_NUM_OF_GPU_LAYERS=0
+export SEQ_LENGTH_FOR_SLOT=4096
+export CONCURRENT_CALLS=2
+
+# Run python script to evaluate on the dataset
+python -m evaluator                                              \
+          model=${MODEL}                                         \
+          dataset=${DATASET}                                     \
+          load_num_of_gpu_layers=${LOAD_NUM_OF_GPU_LAYERS}       \
+          concurrent_calls=${CONCURRENT_CALLS}                   \

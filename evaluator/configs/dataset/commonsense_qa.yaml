@@ -1,0 +1,2 @@
+name: commonsense_qa
+path: data/jsonl/CommonsenseQA/test.jsonl
