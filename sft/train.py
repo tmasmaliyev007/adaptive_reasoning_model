@@ -4,7 +4,9 @@ from dotenv import load_dotenv
 
 from transformers import PreTrainedTokenizerFast, PreTrainedModel
 from unsloth import FastLanguageModel
-from trl import SFTTrainer, SFTConfig
+
+from trl import SFTConfig
+from .build_trainer import PerplexityLossSFTTrainer
 
 from.utils import push_to_hub_merged, tokenize
 from datasets import load_dataset, Dataset
@@ -85,7 +87,7 @@ def build_trainer(
     dst_train: Dataset, 
     dst_val: Dataset, 
     cfg: DictConfig
-) -> SFTTrainer:
+):
     # Define training argument
     args = SFTConfig(
         # output_dir = f"checkpoints/{cfg.experiment_name}",
@@ -122,7 +124,7 @@ def build_trainer(
     )
     
     # Define trainer wrapper
-    trainer = SFTTrainer(
+    trainer = PerplexityLossSFTTrainer(
         model = model,
         train_dataset = dst_train,
         eval_dataset = dst_val,
