@@ -1,4 +1,4 @@
-from math_verify import parse, verify, LatexExtractionConfig
+from math_verify import parse, verify, LatexExtractionConfig, ExprExtractionConfig
 from typing import Protocol
 
 class DatasetEval(Protocol):
@@ -11,7 +11,7 @@ def exact_match(gr_truth: str, predicted: str) -> bool:
 
 
 def math_check(gr_truth: str, predicted: str) -> bool:
-    p_gr_truth = parse(gr_truth, extraction_config=[LatexExtractionConfig()])
+    p_gr_truth = parse(gr_truth, extraction_config=[LatexExtractionConfig(), ExprExtractionConfig()])
     p_predicted = parse(predicted)
 
     return verify(p_gr_truth, p_predicted)

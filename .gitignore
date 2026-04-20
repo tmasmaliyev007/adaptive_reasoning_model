@@ -6,3 +6,4 @@ __pycache__
 *.json
 *.zip
 *.egg-info
+unsloth_compiled_cache

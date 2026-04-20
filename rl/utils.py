@@ -2,7 +2,7 @@ from typing import Dict, List
 from omegaconf import DictConfig
 
 from transformers import PreTrainedTokenizerFast, PreTrainedModel
-from trl import SFTTrainer
+from trl import GRPOTrainer
 
 def tokenize(
     example:   Dict[str, str],
@@ -10,13 +10,13 @@ def tokenize(
     cfg:       DictConfig
 ) -> Dict[str, List[int]]:
     
-    # Get Instruction & Solution pairs
-    instruction = example[cfg.data.user_field]
-    solution    = example[cfg.data.assistant_field]
+    # Get Question
+    question = example['question']
+
 
     # Define prompt message
     prompt_message = [
-        {'role': 'user',      'content': instruction}
+        {'role': 'user',      'content': question}
     ]
 
     # Tokenize only prompt message
@@ -25,29 +25,8 @@ def tokenize(
         tokenize = True,
         add_generation_prompt = True,
         truncation = True,
-        max_length = cfg.model.max_seq_length
+        max_length = cfg.model.max_prompt_length
     )
-
-    # Get length of tokenized prompt message
-    prompt_length = len(prompt_ids)
-
-    # Define full conversation
-    full_message = [
-        {'role': 'user',      'content': instruction},
-        {'role': 'assistant', 'content': solution}
-    ]
-
-    # Tokenize full conversation
-    input_ids = tokenizer.apply_chat_template(
-        full_message,
-        tokenize = True,
-        add_generation_prompt = False,
-        truncation = True,
-        max_length = cfg.model.max_seq_length
-    )
-
-    # Set `ignore_index` to prompt tokens to ignore during loss calculation
-    labels = [-100] * prompt_length + input_ids[prompt_length:]
 
     # Return dictionary with corresponding fields
     return {
@@ -56,8 +35,19 @@ def tokenize(
         'labels': labels
     }
 
+def prepare_grpo_dataset(ds: Dataset) -> Dataset:
+    def process(example):
+        return {
+            'prompt': [
+                {'role': 'user', 'content': example['question']}
+            ],
+            'answer': example['answer']
+        }
+
+    return ds.map(process, remove_columns=ds.column_names)
+
 def push_to_hub_merged(
-    trainer: SFTTrainer,
+    trainer: GRPOTrainer,
     tokenizer: PreTrainedTokenizerFast,
     cfg: DictConfig,
 ):

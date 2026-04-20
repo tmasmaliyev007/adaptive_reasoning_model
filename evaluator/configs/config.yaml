@@ -2,6 +2,8 @@ defaults:
   - model:      qwen3-4B 
   - connection: default
   - dataset:    aime2025
+  - override hydra/job_logging:    disabled
+  - override hydra/hydra_logging:  disabled
   - _self_
 
 load_num_of_gpu_layers: 0
