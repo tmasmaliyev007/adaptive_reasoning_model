@@ -1,3 +1,6 @@
 [submodule "libs/unsloth"]
 	path = libs/unsloth
 	url = https://github.com/unslothai/unsloth/
+[submodule "libs/LLM-Blender"]
+	path = libs/LLM-Blender
+	url = https://github.com/yuchenlin/LLM-Blender
