@@ -2,7 +2,8 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from dotenv import load_dotenv
 
-from unsloth import FastLanguageModel
+from unsloth import FastLanguageModel, PatchFastRL
+PatchFastRL("GRPO", FastLanguageModel)    
 from transformers import PreTrainedTokenizerFast, PreTrainedModel
 
 from trl import GRPOConfig, GRPOTrainer
@@ -34,17 +35,11 @@ def load_model_and_tokenizer(cfg: DictConfig):
         attn_implementation = cfg.model.attn_implementation
     )
 
-    # Add ARM Special tokens
-    if cfg.model.special_tokens:
-        tokenizer.add_tokens(
-            list(cfg.model.special_tokens), 
-            special_tokens=True
-        )
-
     # Specify target modules
     target_modules = list(cfg.lora.target_modules)
+    modules_to_save = []
     if cfg.lora.train_embeddings:
-        target_modules.extend(["embed_tokens"])
+        modules_to_save.extend(["embed_tokens"])
     
     # Apply LoRA
     model = FastLanguageModel.get_peft_model(
@@ -52,7 +47,9 @@ def load_model_and_tokenizer(cfg: DictConfig):
         r = cfg.lora.r,
         lora_alpha = cfg.lora.lora_alpha,
         lora_dropout = cfg.lora.lora_dropout,
+        
         target_modules = target_modules,
+        modules_to_save = modules_to_save,
         use_gradient_checkpointing = cfg.model.use_gradient_checkpointing
     )
     
@@ -66,11 +63,11 @@ def load_model_and_tokenizer(cfg: DictConfig):
 def load_local_dataset(cfg: DictConfig, tokenizer: PreTrainedTokenizerFast) -> Tuple[Dataset, Dataset]:
     # Read train & validation datasets from local directory
     ds_train = load_dataset("json", data_files={'train': cfg.data.train_path})['train']
-    ds_val   = load_dataset("json", data_files={'val':   cfg.data.eval_path})['val']
+    # ds_val   = load_dataset("json", data_files={'val':   cfg.data.eval_path})['val']
 
     # Prepare dataset on each example
-    dst_train = prepare_dataset(ds_train, tokenizer, cfg)
-    dst_val   = prepare_dataset(ds_val,   tokenizer, cfg)
+    dst_train = prepare_dataset(ds_train)
+    # dst_val   = prepare_dataset(ds_val)
     
     # dst_train = ds_train.map(
     #     lambda example: tokenize(example, tokenizer, cfg), 
@@ -82,14 +79,14 @@ def load_local_dataset(cfg: DictConfig, tokenizer: PreTrainedTokenizerFast) -> T
     #     remove_columns=ds_val.column_names
     # )
 
-    return dst_train, dst_val
+    return dst_train
 
 
 def build_trainer(
     model: PreTrainedModel,
     tokenizer: PreTrainedTokenizerFast,
     dst_train: Dataset,
-    dst_val: Dataset,
+    # dst_val: Dataset,
     cfg: DictConfig
 ) -> GRPOTrainer:
     
@@ -101,7 +98,7 @@ def build_trainer(
         num_train_epochs = cfg.training.num_epochs,
         beta = cfg.training.kl_coef,
 
-        num_generations = cfg.num_generations,
+        num_generations = cfg.training.num_generations,
         per_device_train_batch_size = cfg.training.per_device_train_batch_size,
         gradient_accumulation_steps = cfg.training.gradient_accumulation_steps, 
 
@@ -117,7 +114,7 @@ def build_trainer(
         bf16 = cfg.training.bf16,
 
         logging_steps = cfg.training.logging_steps,
-        eval_strategy = "steps",
+        eval_strategy = "no",
         eval_steps = cfg.training.eval_steps,
 
         load_best_model_at_end = cfg.training.load_best_model_at_end,
@@ -127,7 +124,7 @@ def build_trainer(
         weight_decay = cfg.training.weight_decay,
         seed = cfg.seed,
 
-        dataset_num_proc = cfg.training.dataset_num_proc,
+        # dataset_num_proc = cfg.training.dataset_num_proc,
         # packing=cfg.training.packing,
         
 
@@ -140,7 +137,7 @@ def build_trainer(
         model = model,
         processing_class = tokenizer,
         train_dataset = dst_train,
-        eval_dataset = dst_val,
+        # eval_dataset = dst_val,
         args = args,
         reward_funcs = [correctness_reward_func]
     )
@@ -170,10 +167,10 @@ def main(cfg: DictConfig):
     model, tokenizer = load_model_and_tokenizer(cfg)
 
     # Load datasets from local directory
-    dst_train, dst_val = load_local_dataset(cfg, tokenizer)
+    dst_train = load_local_dataset(cfg, tokenizer)
 
     # Define Trainer wrapper & start training
-    trainer = build_trainer(model, tokenizer, dst_train, dst_val, cfg)
+    trainer = build_trainer(model, tokenizer, dst_train, cfg)
     trainer.train()
 
     # Push to the huggingface hub as merged model

@@ -11,5 +11,5 @@ target_modules:
   - up_proj
   - down_proj
 
-train_embeddings: true
-tie_weights:      true
+train_embeddings: false
+tie_weights:      false

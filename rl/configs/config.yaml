@@ -2,7 +2,7 @@ defaults:
   - model:     qwen3_4b
   - lora:      default
   - training:  default
-  - data:      stage-1
+  - data:      stage-2
   - override hydra/job_logging:    disabled
   - override hydra/hydra_logging:  disabled
   - _self_

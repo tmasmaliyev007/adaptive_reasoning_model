@@ -6,6 +6,9 @@ requires-python = ">=3.10"
 
 dependencies = [
     "unsloth[cu128-torch280]",
+    "llm-blender",
+    "mergekit",
+    "weave",
     "hydra-core",
     "omegaconf",
     "python-dotenv",
@@ -18,7 +21,8 @@ dependencies = [
 include = ["sft*"]
 
 [tool.uv.sources]
-unsloth = { path = "libs/unsloth", editable = false }
+unsloth = { path = "libs/unsloth", editable = true }
+llm-blender = { path = "libs/LLM-Blender", editable = true }
 flash-attn = { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiTRUE-cp310-cp310-linux_x86_64.whl" }
 
 [build-system]

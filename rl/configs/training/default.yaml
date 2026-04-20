@@ -1,5 +1,5 @@
 num_epochs:                  3
-num_generations:             3
+num_generations:             8
 
 per_device_train_batch_size: 8
 gradient_accumulation_steps: 4
@@ -13,12 +13,11 @@ max_grad_norm:               1.0
 fp16:                        false
 bf16:                        true
 logging_steps:               200
-eval_steps:                  200
-metric_for_best_model:       "eval_loss"
+eval_steps:                  null
+metric_for_best_model:       null
     
 load_best_model_at_end:      false
 greater_is_better:           false
     
 optim:                       "adamw_8bit"
 weight_decay:                0.01
-dataset_num_proc:            4
