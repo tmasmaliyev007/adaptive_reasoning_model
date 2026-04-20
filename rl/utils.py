@@ -2,6 +2,7 @@ from typing import Dict, List
 from omegaconf import DictConfig
 
 from transformers import PreTrainedTokenizerFast, PreTrainedModel
+from datasets import Dataset
 from trl import GRPOTrainer
 
 def tokenize(
@@ -10,9 +11,9 @@ def tokenize(
     cfg:       DictConfig
 ) -> Dict[str, List[int]]:
     
-    # Get Question
+    # Get Question & Answer
     question = example['question']
-
+    answer = example['answer']
 
     # Define prompt message
     prompt_message = [
@@ -27,15 +28,21 @@ def tokenize(
         truncation = True,
         max_length = cfg.model.max_prompt_length
     )
+    # prompt_length = len(prompt_ids)
+
+
+    # # Set `ignore_index` to prompt tokens to ignore during loss calculation
+    # labels = [-100] * prompt_length + prompt_ids[prompt_length:]
 
     # Return dictionary with corresponding fields
     return {
-        'input_ids': input_ids,
-        'attention_mask': [1] * len(input_ids),
-        'labels': labels
+        'input_ids': prompt_ids,
+        'attention_mask': [1] * len(prompt_ids),
+        'answer': answer
+        # 'labels': labels,
     }
 
-def prepare_grpo_dataset(ds: Dataset) -> Dataset:
+def prepare_dataset(ds: Dataset) -> Dataset:
     def process(example):
         return {
             'prompt': [

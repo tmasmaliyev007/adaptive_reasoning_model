@@ -2,8 +2,8 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from dotenv import load_dotenv
 
-from transformers import PreTrainedTokenizerFast, PreTrainedModel
 from unsloth import FastLanguageModel
+from transformers import PreTrainedTokenizerFast, PreTrainedModel
 
 from trl import SFTConfig, SFTTrainer
 from .loss import perplexity_loss

@@ -5,11 +5,12 @@ description = "Adaptive Reasoning Model - Task-aware reasoning for LLMs using GR
 requires-python = ">=3.10"
 
 dependencies = [
-    "unsloth",
+    "unsloth[cu128-torch280]",
     "hydra-core",
     "omegaconf",
     "python-dotenv",
     "wandb",
+    "math-verify",
     "flash-attn"
 ]
 

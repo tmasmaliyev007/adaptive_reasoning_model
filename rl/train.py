@@ -2,18 +2,13 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from dotenv import load_dotenv
 
-from transformers import PreTrainedTokenizerFast, PreTrainedModel
 from unsloth import FastLanguageModel
-
-try:
-    from transformers.utils.hub import TRANSFORMERS_CACHE
-except ImportError:
-    from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE as TRANSFORMERS_CACHE
+from transformers import PreTrainedTokenizerFast, PreTrainedModel
 
 from trl import GRPOConfig, GRPOTrainer
-from .loss import perplexity_loss
 
-from .utils import push_to_hub_merged, tokenize
+from .utils import push_to_hub_merged, tokenize, prepare_dataset
+from .reward_fn import correctness_reward_func
 from datasets import load_dataset, Dataset
 
 import torch
@@ -73,24 +68,28 @@ def load_local_dataset(cfg: DictConfig, tokenizer: PreTrainedTokenizerFast) -> T
     ds_train = load_dataset("json", data_files={'train': cfg.data.train_path})['train']
     ds_val   = load_dataset("json", data_files={'val':   cfg.data.eval_path})['val']
 
-    # Apply tokenization on each example
-    dst_train = ds_train.map(
-        lambda example: tokenize(example, tokenizer, cfg), 
-        remove_columns=ds_train.column_names
-    )
+    # Prepare dataset on each example
+    dst_train = prepare_dataset(ds_train, tokenizer, cfg)
+    dst_val   = prepare_dataset(ds_val,   tokenizer, cfg)
+    
+    # dst_train = ds_train.map(
+    #     lambda example: tokenize(example, tokenizer, cfg), 
+    #     remove_columns=ds_train.column_names
+    # )
 
-    dst_val = ds_val.map(
-        lambda example: tokenize(example, tokenizer, cfg),
-        remove_columns=ds_val.column_names
-    )
+    # dst_val = ds_val.map(
+    #     lambda example: tokenize(example, tokenizer, cfg),
+    #     remove_columns=ds_val.column_names
+    # )
 
     return dst_train, dst_val
 
 
 def build_trainer(
-    model: PreTrainedModel, 
-    dst_train: Dataset, 
-    dst_val: Dataset, 
+    model: PreTrainedModel,
+    tokenizer: PreTrainedTokenizerFast,
+    dst_train: Dataset,
+    dst_val: Dataset,
     cfg: DictConfig
 ) -> GRPOTrainer:
     
@@ -100,6 +99,7 @@ def build_trainer(
     args = GRPOConfig(
         # output_dir = f"checkpoints/{cfg.experiment_name}",
         num_train_epochs = cfg.training.num_epochs,
+        beta = cfg.training.kl_coef,
 
         num_generations = cfg.num_generations,
         per_device_train_batch_size = cfg.training.per_device_train_batch_size,
@@ -128,7 +128,8 @@ def build_trainer(
         seed = cfg.seed,
 
         dataset_num_proc = cfg.training.dataset_num_proc,
-        packing=cfg.training.packing,
+        # packing=cfg.training.packing,
+        
 
         report_to = "wandb" if cfg.wandb.enabled else "none",
         run_name = cfg.experiment_name
@@ -137,12 +138,11 @@ def build_trainer(
     # Define trainer wrapper
     trainer = GRPOTrainer(
         model = model,
+        processing_class = tokenizer,
         train_dataset = dst_train,
         eval_dataset = dst_val,
         args = args,
-        reward_funcs=[
-            perplexity_loss
-        ]
+        reward_funcs = [correctness_reward_func]
     )
 
     return trainer
@@ -173,7 +173,7 @@ def main(cfg: DictConfig):
     dst_train, dst_val = load_local_dataset(cfg, tokenizer)
 
     # Define Trainer wrapper & start training
-    trainer = build_trainer(model, dst_train, dst_val, cfg)
+    trainer = build_trainer(model, tokenizer, dst_train, dst_val, cfg)
     trainer.train()
 
     # Push to the huggingface hub as merged model
